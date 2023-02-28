@@ -9,12 +9,14 @@ import (
 主要是进行并发控制
 */
 
+// 支持并发读写的lru缓存
 type cache struct {
 	mu         sync.Mutex
 	lru        *lru.Cache
 	cacheBytes int64
 }
 
+// 向缓存中添加数据
 func (c *cache) add(key string, value ByteView) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -27,6 +29,7 @@ func (c *cache) add(key string, value ByteView) {
 	c.lru.Add(key, value)
 }
 
+// 从缓存中读取数据
 func (c *cache) get(key string) (value ByteView, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

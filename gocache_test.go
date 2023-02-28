@@ -52,3 +52,4 @@ func TestGet(t *testing.T) {
 		t.Fatalf("the value of unknow should be empty, but %s got", view)
 	}
 }
+

@@ -27,8 +27,9 @@ func (f GetterFunc) Get(key string) ([]byte, error) {
 // Group 是一个缓存的命名空间
 type Group struct {
 	name      string
-	getter    Getter // 缓存未命中时获取源数据的回调(callback)
-	mainCache cache  // 并发缓存
+	getter    Getter     // 缓存未命中时获取源数据的回调(callback)
+	mainCache cache      // 并发缓存
+	peers     PeerPicker // 节点
 }
 
 var (
@@ -50,6 +51,14 @@ func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
 	}
 	groups[name] = g
 	return g
+}
+
+// RegisterPeers 注册一个PeerPicker来选择远端节点
+func (g *Group) RegisterPeers(peers PeerPicker) {
+	if g.peers != nil {
+		panic("RegisterPeerPicker called more than once")
+	}
+	g.peers = peers
 }
 
 // GetGroup 返回之前用NewGroup创建的命名组，如果没有这样的组则为nil。
@@ -76,7 +85,25 @@ func (g *Group) Get(key string) (ByteView, error) {
 	return g.load(key)
 }
 
+// 实现了 PeerGetter 接口的 httpGetter 从访问远程节点，获取缓存值。
+func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
+	bytes, err := peer.Get(g.name, key)
+	if err != nil {
+		return ByteView{}, err
+	}
+	return ByteView{b: bytes}, nil
+}
+
 func (g *Group) load(key string) (value ByteView, err error) {
+	if g.peers != nil {
+		// 从远程获取
+		if peer, ok := g.peers.PickPeer(key); ok {
+			if value, err = g.getFromPeer(peer, key); err == nil {
+				return value, nil
+			}
+			log.Println("[GeeCache] Failed to get from peer", err)
+		}
+	}
 	return g.getLocally(key)
 }
 
